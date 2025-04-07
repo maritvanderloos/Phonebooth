@@ -9,6 +9,7 @@ import tensorflow as tf
 from tensorflow.keras import layers
 from tensorflow.keras import models
 from IPython import display
+from python_dict_wrapper import wrap, unwrap
 
 # Set the seed value for experiment reproducibility.
 seed = 42
@@ -204,14 +205,22 @@ model.compile(
     metrics=['accuracy'],
 )
 
-# Train the model over 10 epochs for demonstration purposes:
-EPOCHS = 10
-history = model.fit(
-    train_spectrogram_ds,
-    validation_data=val_spectrogram_ds,
-    epochs=EPOCHS,
-    callbacks=tf.keras.callbacks.EarlyStopping(verbose=1, patience=2),
-)
+TRAIN = False
+WEIGHTS_PATH = "saved.weights.h5"
+if TRAIN:
+    # Train the model over 10 epochs for demonstration purposes:
+    EPOCHS = 10
+    print(f"Training over {EPOCHS} epochs")
+    history = model.fit(
+        train_spectrogram_ds,
+        validation_data=val_spectrogram_ds,
+        epochs=EPOCHS,
+        callbacks=tf.keras.callbacks.EarlyStopping(verbose=1, patience=2),
+    )
+    model.save_weights(WEIGHTS_PATH)
+else: # just load the weights
+    print("Loading weights from " + WEIGHTS_PATH)
+    model.load_weights(WEIGHTS_PATH)
 
 # plot training and validation loss curves
 def plot_loss_curves():
@@ -283,8 +292,9 @@ class ExportModel(tf.Module):
             'class_names': class_names}
 
 export = ExportModel(model)
-print(export(tf.constant(str(data_dir/'no/01bb6a2a_nohash_0.wav'))))
+print(export(tf.constant(str(data_dir / 'no/01bb6a2a_nohash_0.wav'))))
+#tf.saved_model.save(model, "saved")
+# model.save_weights("saved.weights.h5")
 
-tf.saved_model.save(export, "saved")
 # imported = tf.saved_model.load("saved")
-# print(imported(waveform[tf.newaxis, :]))
+# imported(waveform[tf.newaxis, :])
