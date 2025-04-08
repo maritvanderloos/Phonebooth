@@ -1,3 +1,12 @@
+"""
+M7 telephone booth project, Floor and Marit
+This code is adapted from the TensorFlow tutorial:
+'Simple audio recognition: Recognizing keywords'
+URL: https://www.tensorflow.org/tutorials/audio/simple_audio#export_the_model_with_preprocessing
+Copyright: The TensorFlow Authors
+Accessed: April 7, 2025
+"""
+
 import os
 import pathlib
 
@@ -205,6 +214,8 @@ model.compile(
     metrics=['accuracy'],
 )
 
+
+
 TRAIN = False
 WEIGHTS_PATH = "saved.weights.h5"
 if TRAIN:
@@ -267,6 +278,7 @@ class ExportModel(tf.Module):
 
     # Accept either a string-filename or a batch of waveforms.
     # YOu could add additional signatures for a single wave, or a ragged-batch.
+    #__call__ makes the class object callable
     self.__call__.get_concrete_function(
         x=tf.TensorSpec(shape=(), dtype=tf.string))
     self.__call__.get_concrete_function(
@@ -285,14 +297,30 @@ class ExportModel(tf.Module):
     x = get_spectrogram(x)
     result = self.model(x, training=False)
 
+    # Apply softmax to get probabilities
+    probabilities = tf.nn.softmax(result, axis=-1)
+
+    # Calculate entropy for each prediction
+    # Higher entropy means more uncertainty/uniformity in distribution
+    entropy = -tf.reduce_sum(
+        probabilities * tf.math.log(probabilities + 1e-10),
+        axis=-1
+    )
+
     class_ids = tf.argmax(result, axis=-1)
     class_names = tf.gather(label_names, class_ids)
+
     return {'predictions':result,
+            'entropy': entropy,
             'class_ids': class_ids,
             'class_names': class_names}
 
 export = ExportModel(model)
-print(export(tf.constant(str(data_dir / 'no/01bb6a2a_nohash_0.wav'))))
+print("get:")
+print()
+print(export(tf.constant(str('data/get.wav'))))
+
+
 #tf.saved_model.save(model, "saved")
 # model.save_weights("saved.weights.h5")
 
