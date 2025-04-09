@@ -78,7 +78,7 @@ def plot_spectrogram(spectrogram, ax):
 # # Convert the TensorFlow tensor to a NumPy array for plotting
 # # spectrogram_np = spectrogram_tf.numpy()
 
-wavefile = wave.open("voice_input/input/demo.wav", "r")
+wavefile = wave.open("demo.wav", "r")
 #wavefile = wave.open("voice_input/input/0f3f64d5_nohash_0.wav", "r")
 total_frames = wavefile.getnframes()
 data_set = tf.keras.utils.audio_dataset_from_directory(
@@ -105,7 +105,7 @@ for audio, example_labels in data_set.take(1):
 # spectrogram_tf = get_long_spectrogram(audio, samples)
 
 
-audio = l.load("voice_input/input/demo.wav")[0]
+audio = l.load("demo.wav")[0]
 x = l.effects.trim(audio, top_db = 50)[0]
 
 print(f"the x is {x}")
