@@ -36,6 +36,37 @@ def get_spectrogram(waveform):
   spectrogram = spectrogram[..., tf.newaxis]
   return spectrogram
 
+# make a spectrogram of the waveforms (specific for longer audios)
+def get_long_spectrogram(waveform, number_of_frames):
+    frame_steps = number_of_frames/125
+    # Convert the waveform to a spectrogram via a STFT.
+    spectrogram = tf.signal.stft(
+        waveform, frame_length=255, frame_step=frame_steps)
+    # Obtain the magnitude of the STFT (by dropping the phase).
+    spectrogram = tf.abs(spectrogram)
+    # Add a `channels` dimension, so that the spectrogram can be used
+    # as image-like input data with convolution layers (which expect
+    # shape (`batch_size`, `height`, `width`, `channels`).
+    spectrogram = spectrogram[..., tf.newaxis]
+    return spectrogram
+
+def plot_spectrogram(spectrogram, ax):
+  if len(spectrogram.shape) > 2:
+    assert len(spectrogram.shape) == 3
+    spectrogram = np.squeeze(spectrogram, axis=-1)
+  # Convert the frequencies to log scale and transpose, so that the time is
+  # represented on the x-axis (columns).
+  # Add an epsilon to avoid taking a log of zero.
+  log_spec = np.log(spectrogram.T + np.finfo(float).eps)
+  height = log_spec.shape[0]
+  width = log_spec.shape[1]
+  X = np.linspace(0, np.size(spectrogram), num=width, dtype=int)
+  Y = range(height)
+  ax.pcolormesh(X, Y, log_spec)
+
+wavefile = wave.open("voice_input/input/demo.wav", "r")
+total_frames = wavefile.getnframes()
+
 class ExportModel(tf.Module):
   def __init__(self, model):
     self.model = model
@@ -58,7 +89,7 @@ class ExportModel(tf.Module):
       x = tf.squeeze(x, axis=-1)
       x = x[tf.newaxis, :]
 
-    x = get_spectrogram(x)
+    x = get_long_spectrogram(x, )
     result = self.model(x, training=False)
 
     # Apply softmax to get probabilities
@@ -80,13 +111,14 @@ class ExportModel(tf.Module):
             'class_names': class_names}
 
 export = ExportModel(model)
+export(tf.constant(str('demo.wav')))
+
 # print("get:")
 # print()
 # print(export(tf.constant(str('data/get.wav'))))
+
+
 def plot_waves(example_audio):
-
-
-
   # plot audio waveforms
 
     plt.figure(figsize=(16, 10))
@@ -102,23 +134,33 @@ def plot_waves(example_audio):
     plt.show()
 
 
+
+
 # make the sliding window
 
-wavefile = wave.open("demo.wav", "r")
-total_frames = wavefile.getnframes()
-sampling_rate, samples = wavfile.read('demo.wav')
 
-audio = AudioSegment.from_file("demo.wav")
+# wavefile = wave.open("demo.wav", "r")
+# total_frames = wavefile.getnframes()
+# sampling_rate, samples = wavfile.read('demo.wav')
+#
+# audio = AudioSegment.from_file("demo.wav")
+#
+# spectrogram = get_long_spectrogram(wavefile, total_frames)
+#
+# fig, axes = plt.subplots(1, figsize=(12, 8))
+# plot_spectrogram(spectrogram.numpy(), axes[1])
+# axes[1].set_title('Spectrogram')
+# plt.show()
 
-list_frames = []
-for frame in range(0, total_frames-15999, 8000):
-    window = samples[frame:frame+15999]
-
-
-    list_frames.append(window)
-    #window.export("short_demo.wav", format= "wav")
-    print(export(float(tf.constant(window)))["class_names"])
-#plot_waves(list_frames)
-print(export(tf.constant(str('data/right.wav')))["class_names"])
+# list_frames = []
+# for frame in range(0, total_frames-15999, 8000):
+#     window = samples[frame:frame+15999]
+#
+#
+#     list_frames.append(window)
+#     #window.export("short_demo.wav", format= "wav")
+#     print(export(float(tf.constant(window)))["class_names"])
+# #plot_waves(list_frames)
+# print(export(tf.constant(str('data/right.wav')))["class_names"])
 
 #print(wavefile.getparams())

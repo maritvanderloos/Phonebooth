@@ -20,6 +20,9 @@ from tensorflow.keras import models
 from IPython import display
 from python_dict_wrapper import wrap, unwrap
 
+from scipy.io import wavfile
+import wave
+from pydub import AudioSegment
 # Set the seed value for experiment reproducibility.
 seed = 42
 tf.random.set_seed(seed)
@@ -69,8 +72,8 @@ val_ds = val_ds.map(squeeze, tf.data.AUTOTUNE)
 test_ds = val_ds.shard(num_shards=2, index=0)
 val_ds = val_ds.shard(num_shards=2, index=1)
 
-def plot_waves():
 
+def plot_waves():
   for example_audio, example_labels in train_ds.take(1):
     print(example_audio.shape)
     print(example_labels.shape)
@@ -91,11 +94,13 @@ def plot_waves():
       plt.ylim([-1.1, 1.1])
     plt.show()
 
-# make a spectrogram of the waveforms
+# make a spectrogram of the waveforms (specific for 1 second audio)
 def get_spectrogram(waveform):
-  # Convert the waveform to a spectrogram via a STFT.
+  # Convert the waveform to a spectrogram via a STFT. try to make it square here
   spectrogram = tf.signal.stft(
       waveform, frame_length=255, frame_step=128)
+    #for 16000 and 16000 it is Spectrogram shape: (1, 8193, 1) so width 1 and height 8193
+    #16000/128 = 125, so to get the frame_step, do number of frames/125
   # Obtain the magnitude of the STFT (by dropping the phase).
   spectrogram = tf.abs(spectrogram)
   # Add a `channels` dimension, so that the spectrogram can be used
@@ -104,9 +109,11 @@ def get_spectrogram(waveform):
   spectrogram = spectrogram[..., tf.newaxis]
   return spectrogram
 
+
 for example_audio, example_labels in train_ds.take(1):
   for i in range(3):
     label = label_names[example_labels[i]]
+    #these waveforms have len() 16000
     waveform = example_audio[i]
     spectrogram = get_spectrogram(waveform)
 
@@ -129,17 +136,22 @@ def plot_spectrogram(spectrogram, ax):
   Y = range(height)
   ax.pcolormesh(X, Y, log_spec)
 
+
 def plot_waveform_spectrogram():
   fig, axes = plt.subplots(2, figsize=(12, 8))
   timescale = np.arange(waveform.shape[0])
+  print(f"waveform printed {waveform.numpy()}")
   axes[0].plot(timescale, waveform.numpy())
   axes[0].set_title('Waveform')
   axes[0].set_xlim([0, 16000])
 
+  print(f"spectrogram printed {spectrogram.numpy()}")
   plot_spectrogram(spectrogram.numpy(), axes[1])
   axes[1].set_title('Spectrogram')
   plt.suptitle(label.title())
   plt.show()
+
+plot_waveform_spectrogram()
 
 # make spectrogram datasets from the audio datasets
 def make_spec_ds(ds):
@@ -218,6 +230,7 @@ model.compile(
 
 TRAIN = False
 WEIGHTS_PATH = "saved.weights.h5"
+MODEL_PATH = "saved_model.keras"
 if TRAIN:
     # Train the model over 10 epochs for demonstration purposes:
     EPOCHS = 10
@@ -228,6 +241,7 @@ if TRAIN:
         epochs=EPOCHS,
         callbacks=tf.keras.callbacks.EarlyStopping(verbose=1, patience=2),
     )
+    model.save(MODEL_PATH)
     model.save_weights(WEIGHTS_PATH)
 else: # just load the weights
     print("Loading weights from " + WEIGHTS_PATH)
@@ -320,6 +334,8 @@ print("get:")
 print()
 print(export(tf.constant(str('data/get.wav'))))
 
+tf.constant(str('demo.wav')).get_concrete_function(
+        x=tf.TensorSpec(shape=(), dtype=tf.string))
 
 #tf.saved_model.save(model, "saved")
 # model.save_weights("saved.weights.h5")
