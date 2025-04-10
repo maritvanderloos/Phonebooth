@@ -6,7 +6,7 @@ import pyaudio
 import wave
 import time
 
-THRESHOLD = 500
+THRESHOLD = 400
 CHUNK_SIZE = 1024
 FORMAT = pyaudio.paInt16
 RATE = 16000
@@ -121,7 +121,7 @@ def record_to_file(path):
 
 if __name__ == '__main__':
     print("please speak a word into the microphone")
-    record_to_file('demo.wav')
+    record_to_file('data/testing_mini_jack/kind/five_i.wav')
     print("done - result written to demo.wav")
 
 

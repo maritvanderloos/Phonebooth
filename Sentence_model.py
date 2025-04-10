@@ -16,11 +16,20 @@ import tensorflow as tf
 
 from tensorflow.keras import layers
 from tensorflow.keras import models
-SEQUENCE_LENGTH = 160000
 
+SEQUENCE_LENGTH = 80000
+
+TRAIN = False
+WEIGHTS_PATH = "sentence.saved.weights.h5"
+MODEL_PATH = "sentence_saved_model.keras"
+
+# Basic audio preprocessing
+def normalize_audio(audio):
+    """Normalize audio to have consistent volume levels."""
+    return audio / tf.reduce_max(tf.abs(audio))
 
 # set the dataset path to the directory containing the sets of sentences
-DATASET_PATH = 'data/mini_speech_commands_extracted/mini_speech_commands'
+DATASET_PATH = 'data/testing_mini_jack'
 data_dir = pathlib.Path(DATASET_PATH)
 
 # get and print all folders of the sound files
@@ -31,7 +40,7 @@ print('Folders:', folders)
 # Generate a tf.data.Dataset from audio files in a directory:
 train_ds, val_ds = tf.keras.utils.audio_dataset_from_directory(
     directory=data_dir,
-    batch_size=16, #set bach size to a number that is not too high, since we only have limited data set
+    batch_size=1, #set bach size to a number that is not too high, since we only have limited data set
     validation_split=0.2, #saves 20% as validation data
     seed=0,
     output_sequence_length=SEQUENCE_LENGTH, # set every audio clip to 10 second (happens because they are all 16kHz)
@@ -59,15 +68,16 @@ val_ds = val_ds.shard(num_shards=2, index=1)
 for example_audio, example_labels in train_ds.take(1):
     print(example_audio.shape)
     print(example_labels.shape)
+    normalize_audio(example_audio)
 
 #function to plot the shape of the wave of the audio file
 def plot_waves():
     # plot audio waveforms
-    print(label_names[[1,1,3,0]])
+    print(label_names[[1,1,0,0]])
 
     plt.figure(figsize=(16, 10))
-    rows = 3
-    cols = 3
+    rows = 1
+    cols = 2
     n = rows * cols
     for i in range(n):
       plt.subplot(rows, cols, i+1)
@@ -110,6 +120,7 @@ def plot_spectrogram(spectrogram, ax):
   Y = range(height)
   ax.pcolormesh(X, Y, log_spec)
 
+#display the waveform with the corresponding spectogram
 def plot_waveform_spectrogram(waveform, spectrogram, label):
   fig, axes = plt.subplots(2, figsize=(12, 8))
   timescale = np.arange(waveform.shape[0])
@@ -125,13 +136,120 @@ def plot_waveform_spectrogram(waveform, spectrogram, label):
   plt.suptitle(label.title())
   plt.show()
 
-for i in range(3):
-    label = label_names[example_labels[i]]
-    #these waveforms have len() 16000
-    waveform = example_audio[i]
-    spectrogram = get_spectrogram(waveform)
+# for i in range(2):
+#     label = label_names[example_labels[i]]
+#     #these waveforms have len() 16000
+#     waveform = example_audio[i]
+#     spectrogram = get_spectrogram(waveform)
+#
+#     print('Label:', label)
+#     print('Waveform shape:', waveform.shape)
+#     print('Spectrogram shape:', spectrogram.shape)
+    #plot_waveform_spectrogram(waveform, spectrogram, label)
 
-    print('Label:', label)
-    print('Waveform shape:', waveform.shape)
-    print('Spectrogram shape:', spectrogram.shape)
-    plot_waveform_spectrogram(waveform, spectrogram, label)
+# make spectrogram datasets from the audio datasets
+def make_spec_ds(ds):
+  return ds.map(
+      map_func=lambda audio,label: (get_spectrogram(audio), label),
+      num_parallel_calls=tf.data.AUTOTUNE)
+
+#making the training, validation and testing datasets
+train_spectrogram_ds = make_spec_ds(train_ds)
+val_spectrogram_ds = make_spec_ds(val_ds)
+test_spectrogram_ds = make_spec_ds(test_ds)
+
+for example_spectrograms, example_spect_labels in train_spectrogram_ds.take(1):
+  break
+
+def plot_multiple_spectrograms():
+    rows = 3
+    cols = 3
+    n = rows * cols
+    fig, axes = plt.subplots(rows, cols, figsize=(16, 9))
+
+    for i in range(n):
+      r = i // cols
+      c = i % cols
+      ax = axes[r][c]
+      plot_spectrogram(example_spectrograms[i].numpy(), ax)
+      ax.set_title(label_names[example_spect_labels[i].numpy()])
+
+    plt.show()
+
+"""building and training model"""
+# reduce latency:
+train_spectrogram_ds = train_spectrogram_ds.cache().shuffle(10000).prefetch(tf.data.AUTOTUNE)
+val_spectrogram_ds = val_spectrogram_ds.cache().prefetch(tf.data.AUTOTUNE)
+test_spectrogram_ds = test_spectrogram_ds.cache().prefetch(tf.data.AUTOTUNE)
+
+input_shape = example_spectrograms.shape[1:]
+print('Input shape:', input_shape)
+num_labels = len(label_names)
+
+# Instantiate the `tf.keras.layers.Normalization` layer.
+norm_layer = layers.Normalization()
+# Fit the state of the layer to the spectrograms
+# with `Normalization.adapt`.
+norm_layer.adapt(data=train_spectrogram_ds.map(map_func=lambda spec, label: spec))
+
+model = models.Sequential([
+    layers.Input(shape=input_shape),
+    # Downsample the input.
+    layers.Resizing(32, 32),
+    # Normalize.
+    norm_layer,
+    layers.Conv2D(32, 3, activation='relu'),
+    layers.Conv2D(64, 3, activation='relu'),
+    layers.MaxPooling2D(),
+    layers.Dropout(0.25),
+    layers.Flatten(),
+    layers.Dense(128, activation='relu'),
+    layers.Dropout(0.5),
+    layers.Dense(num_labels),
+])
+
+model.summary()
+
+# configuring the keras model with Adam optimizer and cross-entropy loss
+model.compile(
+    optimizer=tf.keras.optimizers.Adam(),
+    loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
+    metrics=['accuracy'],
+)
+
+if TRAIN:
+    # Train the model over 10 epochs for demonstration purposes:
+    EPOCHS = 10
+    print(f"Training over {EPOCHS} epochs")
+    history = model.fit(
+        train_spectrogram_ds,
+        validation_data=val_spectrogram_ds,
+        epochs=EPOCHS,
+        callbacks=tf.keras.callbacks.EarlyStopping(verbose=1, patience=2),
+    )
+    model.save(MODEL_PATH)
+    model.save_weights(WEIGHTS_PATH)
+else: # just load the weights
+    print("Loading weights from " + WEIGHTS_PATH)
+    model.load_weights(WEIGHTS_PATH)
+
+# plot training and validation loss curves
+def plot_loss_curves():
+  metrics = history.history
+  plt.figure(figsize=(16,6))
+  plt.subplot(1,2,1)
+  plt.plot(history.epoch, metrics['loss'], metrics['val_loss'])
+  plt.legend(['loss', 'val_loss'])
+  plt.ylim([0, max(plt.ylim())])
+  plt.xlabel('Epoch')
+  plt.ylabel('Loss [CrossEntropy]')
+
+  plt.subplot(1,2,2)
+  plt.plot(history.epoch, 100*np.array(metrics['accuracy']), 100*np.array(metrics['val_accuracy']))
+  plt.legend(['accuracy', 'val_accuracy'])
+  plt.ylim([0, 100])
+  plt.xlabel('Epoch')
+  plt.ylabel('Accuracy [%]')
+  plt.show()
+
+plot_loss_curves()
