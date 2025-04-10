@@ -121,7 +121,7 @@ def record_to_file(path):
 
 if __name__ == '__main__':
     print("please speak a word into the microphone")
-    record_to_file('data/testing_mini_jack/kind/five_i.wav')
+    record_to_file('data/marit_unkind.wav')
     print("done - result written to demo.wav")
 
 
