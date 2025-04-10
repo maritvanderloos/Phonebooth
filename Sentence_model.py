@@ -29,7 +29,7 @@ def normalize_audio(audio):
     return audio / tf.reduce_max(tf.abs(audio))
 
 # set the dataset path to the directory containing the sets of sentences
-DATASET_PATH = 'data/testing_mini_jack'
+DATASET_PATH = 'data/data_collection'
 data_dir = pathlib.Path(DATASET_PATH)
 
 # get and print all folders of the sound files
@@ -40,7 +40,7 @@ print('Folders:', folders)
 # Generate a tf.data.Dataset from audio files in a directory:
 train_ds, val_ds = tf.keras.utils.audio_dataset_from_directory(
     directory=data_dir,
-    batch_size=1, #set bach size to a number that is not too high, since we only have limited data set
+    batch_size= 4, #set bach size to a number that is not too high, since we only have limited data set
     validation_split=0.2, #saves 20% as validation data
     seed=0,
     output_sequence_length=SEQUENCE_LENGTH, # set every audio clip to 10 second (happens because they are all 16kHz)
@@ -51,14 +51,15 @@ print()
 print("label names:", label_names)
 
 # dataset only contains single channel audio; drop extra axis by using tf.squeeze()
-def squeeze(audio, labels):
+def squeeze_and_normalize(audio, labels):
     audio = tf.squeeze(audio, axis=-1)
+    normalize_audio(audio)
     return audio, labels
 
 # apply squeeze to both datasets to remove the channel variable
 # tf.data.AUTOTUNE tells TensorFlow to automatically determine the best parallelism for this operation
-train_ds = train_ds.map(squeeze, tf.data.AUTOTUNE)
-val_ds = val_ds.map(squeeze, tf.data.AUTOTUNE)
+train_ds = train_ds.map(squeeze_and_normalize, tf.data.AUTOTUNE)
+val_ds = val_ds.map(squeeze_and_normalize, tf.data.AUTOTUNE)
 
 # split the validation data into test and validation
 test_ds = val_ds.shard(num_shards=2, index=0)
@@ -87,13 +88,13 @@ def plot_waves():
       plt.yticks(np.arange(-1.2, 1.2, 0.2))
       plt.ylim([-1.1, 1.1])
     plt.show()
-#plot_waves()
+
 
 #funtion to turn the wave into a spectrogram
 def get_spectrogram(waveform):
   # Convert the waveform to a spectrogram via a STFT. try to make it square here
   spectrogram = tf.signal.stft(
-      waveform, frame_length=255, frame_step=128)
+      waveform, frame_length=1024, frame_step=256)
       #for 16000 and 16000 it is Spectrogram shape: (1, 8193, 1) so width 1 and height 8193
       #16000/128 = 125, so to get the frame_step, do number of frames/125
   # Obtain the magnitude of the STFT (by dropping the phase).
@@ -145,7 +146,7 @@ def plot_waveform_spectrogram(waveform, spectrogram, label):
 #     print('Label:', label)
 #     print('Waveform shape:', waveform.shape)
 #     print('Spectrogram shape:', spectrogram.shape)
-    #plot_waveform_spectrogram(waveform, spectrogram, label)
+#     plot_waveform_spectrogram(waveform, spectrogram, label)
 
 # make spectrogram datasets from the audio datasets
 def make_spec_ds(ds):
@@ -194,38 +195,37 @@ norm_layer.adapt(data=train_spectrogram_ds.map(map_func=lambda spec, label: spec
 
 model = models.Sequential([
     layers.Input(shape=input_shape),
-    # Downsample the input.
     layers.Resizing(32, 32),
-    # Normalize.
     norm_layer,
     layers.Conv2D(32, 3, activation='relu'),
+    layers.MaxPooling2D(),
     layers.Conv2D(64, 3, activation='relu'),
     layers.MaxPooling2D(),
     layers.Dropout(0.25),
     layers.Flatten(),
     layers.Dense(128, activation='relu'),
-    layers.Dropout(0.5),
-    layers.Dense(num_labels),
+    layers.Dropout(0.25),
+    layers.Dense(num_labels, activation='softmax'),
 ])
 
 model.summary()
 
 # configuring the keras model with Adam optimizer and cross-entropy loss
 model.compile(
-    optimizer=tf.keras.optimizers.Adam(),
+    optimizer=tf.keras.optimizers.Adam(learning_rate=0.001),
     loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
     metrics=['accuracy'],
 )
 
 if TRAIN:
     # Train the model over 10 epochs for demonstration purposes:
-    EPOCHS = 10
+    EPOCHS = 30
     print(f"Training over {EPOCHS} epochs")
     history = model.fit(
         train_spectrogram_ds,
         validation_data=val_spectrogram_ds,
         epochs=EPOCHS,
-        callbacks=tf.keras.callbacks.EarlyStopping(verbose=1, patience=2),
+        callbacks=tf.keras.callbacks.EarlyStopping(verbose=1, patience=4),
     )
     model.save(MODEL_PATH)
     model.save_weights(WEIGHTS_PATH)
@@ -262,7 +262,7 @@ class ExportModel(tf.Module):
     self.__call__.get_concrete_function(
         x=tf.TensorSpec(shape=(), dtype=tf.string))
     self.__call__.get_concrete_function(
-       x=tf.TensorSpec(shape=[None, 16000], dtype=tf.float32))
+       x=tf.TensorSpec(shape=[None, SEQUENCE_LENGTH], dtype=tf.float32))
 
 
   @tf.function
@@ -270,8 +270,9 @@ class ExportModel(tf.Module):
     # If they pass a string, load the file and decode it.
     if x.dtype == tf.string:
       x = tf.io.read_file(x)
-      x, _ = tf.audio.decode_wav(x, desired_channels=1, desired_samples=16000,)
+      x, _ = tf.audio.decode_wav(x, desired_channels=1, desired_samples=SEQUENCE_LENGTH,)
       x = tf.squeeze(x, axis=-1)
+      normalize_audio(x)
       x = x[tf.newaxis, :]
 
     x = get_spectrogram(x)
@@ -296,6 +297,6 @@ class ExportModel(tf.Module):
             'class_names': class_names}
 
 export = ExportModel(model)
-print("kind answer from marit")
+print("unkind answer from marit")
 print()
-print(export(tf.constant(str('data/marit_unkind.wav'))))
+print(export(tf.constant(str('data/kind_test2.wav'))))
