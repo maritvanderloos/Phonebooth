@@ -120,8 +120,8 @@ def record_to_file(path):
     wf.close()
 
 if __name__ == '__main__':
-    print("please speak a word into the microphone")
-    record_to_file('data/marit_unkind.wav')
+    print("please speak into the microphone")
+    record_to_file('data/data_collection/unkind/person3_q2_unkind_take1.wav')
     print("done - result written to demo.wav")
 
 
