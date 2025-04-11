@@ -20,8 +20,8 @@ from tensorflow.keras import models
 SEQUENCE_LENGTH = 80000
 
 TRAIN = False
-WEIGHTS_PATH = "sentence.saved.weights.h5"
-MODEL_PATH = "sentence_saved_model.keras"
+WEIGHTS_PATH = "sentence2.saved.weights.h5"
+MODEL_PATH = "sentence2_saved_model.keras"
 
 # Basic audio preprocessing
 def normalize_audio(audio):
@@ -296,6 +296,8 @@ class ExportModel(tf.Module):
             'class_ids': class_ids,
             'class_names': class_names}
 
+
+print(f"model: {model}")
 export = ExportModel(model)
 print("unkind answer from marit")
 print()
