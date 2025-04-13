@@ -1,11 +1,6 @@
-import numpy as np
+import time
 import tensorflow as tf
 from keras.src.saving.saving_lib import load_model
-import librosa
-import wave
-from scipy.signal import find_peaks
-from collections import deque
-
 
 #recording audio
 from recording import Recording
@@ -16,6 +11,37 @@ from pydub.playback import play
 #start model
 import keyboard  # using module keyboard
 
+#reading data from the arduino
+from serial.tools import list_ports
+import serial
+import time
+import csv
+
+# Identify the correct port
+ports = list_ports.comports()
+for port in ports: print(port)
+
+def read_turns(turn_amount):
+    # Open the serial com
+    serialCom = serial.Serial('COM3',115200)
+
+    # How many data points to record
+    kmax = turn_amount
+
+    # Loop through and collect data as it is available
+    for k in range(kmax):
+        try:
+            # Read the line
+            s_bytes = serialCom.readline()
+            decoded_bytes = s_bytes.decode("utf-8").strip('\r\n')
+            # print(decoded_bytes)
+
+            # read the values
+            value = [float(x) for x in decoded_bytes.split()]
+            print(value)
+        except:
+            print("Error encountered, line was not recorded.")
+    return True
 
 # Load the trained model
 MODEL_PATH = "sentence2_saved_model.keras"
@@ -25,7 +51,8 @@ model.load_weights(WEIGHTS_PATH)
 
 label_names = ['kind', 'unkind']
 SEQUENCE_LENGTH = 80000
-record = Recording()
+record = Recording(400)
+start_record = Recording(800)
 
 print(model)
 
@@ -93,8 +120,9 @@ class predict_label(tf.Module):
 
 #put the model into the predict class
 predicted = predict_label(model)
-
+restart = False
 def blurred_line():
+    #start_record.start_recording('data/start_sound.wav')
     intro = AudioSegment.from_wav('data/Recording (13).wav')
     play(intro)
 
@@ -127,11 +155,14 @@ def blurred_line():
     else:
         outro = AudioSegment.from_wav('data/unkind_outro.wav')
     play(outro)
+    time.sleep(10)
+    #restart = True
     pass
 
 #controlling the start and restart
 while True:  # making a loops
-    if keyboard.is_pressed('s'):  # if key 's' is pressed
+    if read_turns(4):  # when enough turns are  made, the program starts
+        restart = True
+    if restart:
         blurred_line()
-    elif keyboard.is_pressed('q'):
-        break
+        print("program ended, waiting for turns to start the next session")

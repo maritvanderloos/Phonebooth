@@ -15,8 +15,8 @@ import wave
 import time
 
 class Recording:
-    def __init__(self):
-        self.THRESHOLD = 400
+    def __init__(self, threshold):
+        self.THRESHOLD = threshold #400
         self.CHUNK_SIZE = 1024
         self.FORMAT = pyaudio.paInt16
         self.RATE = 16000
