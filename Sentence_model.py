@@ -19,9 +19,9 @@ from tensorflow.keras import models
 
 SEQUENCE_LENGTH = 80000
 
-TRAIN = False
-WEIGHTS_PATH = "sentence2.saved.weights.h5"
-MODEL_PATH = "sentence2_saved_model.keras"
+TRAIN = True
+WEIGHTS_PATH = "sentence4.saved.weights.h5"
+MODEL_PATH = "sentence4_saved_model.keras"
 
 # Basic audio preprocessing
 def normalize_audio(audio):
@@ -251,6 +251,12 @@ def plot_loss_curves():
   plt.xlabel('Epoch')
   plt.ylabel('Accuracy [%]')
   plt.show()
+
+loss_v, accuracy_v = model.evaluate(val_spectrogram_ds, verbose=1)
+loss, accuracy = model.evaluate(test_spectrogram_ds , verbose=1)
+print(f"of the model\n"
+      f"predicted by validation set, accuracy: {accuracy_v}, loss: {loss_v}\n"
+      f"predicted by test set, accuracy: {accuracy}, loss: {loss}")
 
 class ExportModel(tf.Module):
   def __init__(self, model):

@@ -17,6 +17,9 @@ import serial
 import time
 import csv
 
+#printing
+from printer import PrinterDriver
+
 # Identify the correct port
 ports = list_ports.comports()
 for port in ports: print(port)
@@ -118,6 +121,30 @@ class predict_label(tf.Module):
             'class_ids': class_ids,
             'class_names': class_names}
 
+#printing
+def printing(pbm_path):
+    # Create the printer driver
+    printer = PrinterDriver()
+    printer.energy = int(1 * 0xFFFF)  # 80% of max energy
+    printer.speed = 20  # Lower is slower (default is 32, try 20 or even 10)
+
+    # Scan for devices and connect to the first found
+    devices = printer.scan()
+    while not devices:
+        print("No printer found!")
+        # Scan for devices and connect to the first found
+        devices = printer.scan()
+
+    printer.connect(devices[0].name, devices[0].address)
+
+    # Open the PBM file and print it
+    with open(pbm_path, "rb") as f:
+        printer.print(f, mode="pbm")
+
+    # Clean up
+    printer.unload()
+    pass
+
 #put the model into the predict class
 predicted = predict_label(model)
 restart = False
@@ -128,7 +155,7 @@ def blurred_line():
 
     kindness_counter = 0
     data_path_question = 'data/question_participant.wav'
-    for i in range(1, 4):
+    for i in range(1, 2):
         #record question
         record.start_recording(data_path_question)
 
@@ -152,9 +179,13 @@ def blurred_line():
 
     if kindness_counter >= 2:
         outro = AudioSegment.from_wav('data/kind_outro.wav')
+        play(outro)
+        printing("polite-reciept_resized.pbm")
     else:
         outro = AudioSegment.from_wav('data/unkind_outro.wav')
-    play(outro)
+        play(outro)
+        printing("impolite-reciept_resized.pbm")
+
     print("program ended, waiting for turns to start the next session")
     time.sleep(30)
     #restart = True
@@ -162,8 +193,8 @@ def blurred_line():
 
 #controlling the start and restart
 while True:  # making a loops
-    if read_turns(4):  # when enough turns are  made, the program starts
-        restart = True
+    #if read_turns(4):  # when enough turns are  made, the program starts
+    restart = True
     if restart:
         blurred_line()
 
