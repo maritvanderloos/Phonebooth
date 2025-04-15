@@ -155,7 +155,8 @@ def blurred_line():
     else:
         outro = AudioSegment.from_wav('data/unkind_outro.wav')
     play(outro)
-    time.sleep(10)
+    print("program ended, waiting for turns to start the next session")
+    time.sleep(30)
     #restart = True
     pass
 
@@ -165,4 +166,4 @@ while True:  # making a loops
         restart = True
     if restart:
         blurred_line()
-        print("program ended, waiting for turns to start the next session")
+

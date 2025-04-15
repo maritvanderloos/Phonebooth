@@ -133,6 +133,6 @@ class Recording:
     def start_recording(self, file_path):
         print("please speak into the microphone")
         self.record_to_file(file_path)
-        print("done - result written to demo.wav")
+        print("done - audio written to audio file path")
 
 
